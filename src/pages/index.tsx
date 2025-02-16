@@ -43,7 +43,7 @@ const IndexPage: PageFC = () => {
   const handleOk = () => {
     setIsModalOpen(false);
     messageApi.info(
-      `x: ${xMagification}, y: ${yMagification}, z: ${zMagification}`
+      `軸の各倍率 x: ${xMagification}倍, y: ${yMagification}倍, z: ${zMagification}倍`
     );
   };
 
@@ -101,7 +101,7 @@ const IndexPage: PageFC = () => {
         // updateBones は Viewer コンポーネント内で実行されるため、ここでは scene や header を渡す必要はない
         return nextFrame; // 更新後のフレームインデックスを返す
       });
-    }, fps); 
+    }, 1000/(fps ?? 1)); 
     setIsPlaying(true); // 再生状態を再生中に設定
   }, [frameCount,fps]); // 依存配列 (frameCount が変更されたら再生成 - フレーム数が変わるとアニメーションの範囲が変わるため)
 
@@ -122,7 +122,7 @@ const IndexPage: PageFC = () => {
       stopAnimation(); // アニメーションを停止
     } else {
       // 停止中の場合
-			messageApi.info(`再生開始 ${1000/fps}`);
+			messageApi.info(`再生開始 ${fps}FPS`);
       startAnimation(); // アニメーションを再生開始
     }
   }, [isPlaying, startAnimation, stopAnimation]); // 依存配列 (isPlaying, startAnimation, stopAnimation に依存)
@@ -188,7 +188,7 @@ const IndexPage: PageFC = () => {
           min={1}
           max={1000}
           defaultValue={30}
-          onChange={(v) => setFps(1000/(v ?? 1))}
+          onChange={(v) => setFps(v??1)}
         /> ※FPSは一時停止後に再生すると反映されます
       </div>
       <br />
