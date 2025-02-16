@@ -34,6 +34,8 @@ const IndexPage: PageFC = () => {
   const [yMagification, setYMagification] = useState(-100);
   const [zMagification, setZMagification] = useState(100);
 
+  const [fps, setFps] = useState(30);
+
   const showModal = () => {
     setIsModalOpen(true);
   };
@@ -94,15 +96,14 @@ const IndexPage: PageFC = () => {
         if (nextFrame >= frameCount) {
           // 最終フレームに達したら
           nextFrame = 0; // 最初のフレームに戻す (ループ再生)
-          setIsPlaying(false); // 再生状態を停止に設定
-          clearInterval(animationInterval.current as number); // アニメーションインターバルをクリア
+          // clearInterval(animationInterval.current as number); // アニメーションインターバルをクリア
         }
         // updateBones は Viewer コンポーネント内で実行されるため、ここでは scene や header を渡す必要はない
         return nextFrame; // 更新後のフレームインデックスを返す
       });
-    }, 30); // 30ms 間隔 (約 30fps) でフレーム更新
+    }, fps); 
     setIsPlaying(true); // 再生状態を再生中に設定
-  }, [frameCount]); // 依存配列 (frameCount が変更されたら再生成 - フレーム数が変わるとアニメーションの範囲が変わるため)
+  }, [frameCount,fps]); // 依存配列 (frameCount が変更されたら再生成 - フレーム数が変わるとアニメーションの範囲が変わるため)
 
   // useCallback フック: アニメーション停止処理
   const stopAnimation = useCallback(() => {
@@ -121,6 +122,7 @@ const IndexPage: PageFC = () => {
       stopAnimation(); // アニメーションを停止
     } else {
       // 停止中の場合
+			messageApi.info(`再生開始 ${1000/fps}`);
       startAnimation(); // アニメーションを再生開始
     }
   }, [isPlaying, startAnimation, stopAnimation]); // 依存配列 (isPlaying, startAnimation, stopAnimation に依存)
@@ -180,6 +182,15 @@ const IndexPage: PageFC = () => {
       <Button type="primary" onClick={() => setIsModalOpen(true)}>
         データ読込
       </Button>
+      <div style={{ display: "inline-block", marginLeft: "20px" }}>
+        FPS:{" "}
+        <InputNumber
+          min={1}
+          max={1000}
+          defaultValue={30}
+          onChange={(v) => setFps(1000/(v ?? 1))}
+        /> ※FPSは一時停止後に再生すると反映されます
+      </div>
       <br />
       <Modal
         title="CSVファイルの読み込み"
@@ -187,7 +198,7 @@ const IndexPage: PageFC = () => {
         onOk={handleOk}
         onCancel={handleCancel}
       >
-				<h3>1. 各軸の倍率を指定する</h3>
+        <h3>1. 各軸の倍率を指定する</h3>
         X軸方向の倍率 :{" "}
         <InputNumber
           min={-1000}
@@ -211,7 +222,7 @@ const IndexPage: PageFC = () => {
           defaultValue={100}
           onChange={(v) => setZMagification(v ?? 0)}
         />
-				<h3>2. CSVファイルを指定</h3>
+        <h3>2. CSVファイルを指定</h3>
         <div>
           <input
             type="file"
@@ -250,4 +261,4 @@ const IndexPage: PageFC = () => {
 
 export default IndexPage; // IndexPage コンポーネントを export (Gatsby ページとして利用可能にする)
 
-export const Head: HeadFC = () => <title>Babylon.js Bone Visualization</title>; // HeadFC コンポーネントを export (ページの <head> 内を定義)
+export const Head: HeadFC = () => <title>Horror Mon </title>; // HeadFC コンポーネントを export (ページの <head> 内を定義)

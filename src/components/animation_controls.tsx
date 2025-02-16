@@ -35,6 +35,7 @@ const AnimationControls: React.FC<AnimationControlsProps> = ({
     >
       {" "}
       {/* コントロール領域全体を Flexbox で中央寄せ */}
+      {currentFrame??0}/{frameCount??0}
       <input
         type="range" // シークバー (input type="range")
         id="frameSlider" // id 属性 (DOM 要素へのアクセス用)
@@ -42,7 +43,7 @@ const AnimationControls: React.FC<AnimationControlsProps> = ({
         max={frameCount - 1} // シークバーの最大値 (最終フレームまで)
         value={currentFrame} // シークバーの現在値 (現在のフレームインデックス)
         onChange={handleSliderChange} // 値が変更された時のイベントハンドラー (親コンポーネントから渡された handleSliderChange props を使用)
-        style={{ width: "50%" }} // 幅を 50% に設定
+        style={{ width: "70%" }} // 幅を 50% に設定
         disabled={!isDataLoaded} // データがロードされていない場合は操作不可 (disabled 属性を true に設定)
       />
       <Tooltip title={isPlaying ? "停止": "再生"}>
