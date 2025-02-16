@@ -1,0 +1,20 @@
+{
+    "name": "Gatsby DevContainer (Dockerfile)",
+    "build": {
+        "dockerfile": "./Dockerfile" // 相対パス表記
+    },
+    "features": {
+      "ghcr.io/devcontainers/features/docker-in-docker:latest": {}
+    },
+    "forwardPorts": [8000, 9000],
+    "postCreateCommand": "yarn install", // yarn を利用する場合
+    "customizations": {
+      "vscode": {
+        "extensions": [
+          "dbaeumer.vscode-eslint",
+          "esbenp.prettier-vscode",
+          "GraphQL.vscode-graphql"
+        ]
+      }
+    }
+  }
