@@ -8,6 +8,8 @@ import * as BABYLON from "babylonjs"; // Babylon.js の機能をインポート
 import { Modal } from "antd";
 import type { InputNumberProps } from "antd";
 import { InputNumber, Button, message } from "antd";
+import CsvUploader from "../components/csv_uploader";
+import CsvSettingsModal from "../components/csv_settings_modal";
 
 // IndexPage コンポーネントの実装 (Gatsby のページコンポーネント)
 const IndexPage: PageFC = () => {
@@ -29,10 +31,14 @@ const IndexPage: PageFC = () => {
   const [isDataLoaded, setIsDataLoaded] = useState<boolean>(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [messageApi, contextHolder] = message.useMessage();
+  const [update,setUpdata]=useState<boolean>(false); // 強制レンダリング用
 
   const [xMagification, setXMagification] = useState(100);
   const [yMagification, setYMagification] = useState(-100);
   const [zMagification, setZMagification] = useState(100);
+  const [skipHeadFrameNumber, setSkipHeadFrameNumber] = useState(0);
+  const [skipTailFrameNumber, setSkipTailFrameNumber] = useState(0);
+  const [keyframeSize, setkeyframeSize] = useState(3);
 
   const [fps, setFps] = useState(30);
 
@@ -54,18 +60,6 @@ const IndexPage: PageFC = () => {
   // 3D ビューのサイズを定義 (props として Viewer コンポーネントに渡す)
   const viewSize = { width: "90vw", height: "85vh" }; // 例：固定サイズ (親コンポーネントからサイズ指定)
 
-  // useCallback フック: ボーン初期化処理 (空関数 - Viewer コンポーネントに処理を委譲)
-  const initBones = useCallback((scene: BABYLON.Scene, header: string[]) => {
-    // Viewer コンポーネントに移動
-  }, []); // 空の関数にする (処理は Viewer 側で行う)
-
-  // useCallback フック: ボーン更新処理 (空関数 - Viewer コンポーネントに処理を委譲)
-  const updateBones = useCallback(
-    (scene: BABYLON.Scene, frameIndex: number, header: string[]) => {
-      // Viewer コンポーネントに移動
-    },
-    []
-  ); // 空の関数にする (処理は Viewer 側で行う), updateBones は Viewer 内部で定義される memoizedUpdateBones を使用するため、IndexPage 側は空で問題ない
 
   // useCallback フック: シークバーの値変更時のハンドラー
   const handleSliderChange = useCallback(
@@ -101,9 +95,9 @@ const IndexPage: PageFC = () => {
         // updateBones は Viewer コンポーネント内で実行されるため、ここでは scene や header を渡す必要はない
         return nextFrame; // 更新後のフレームインデックスを返す
       });
-    }, 1000/(fps ?? 1)); 
+    }, 1000 / (fps ?? 1));
     setIsPlaying(true); // 再生状態を再生中に設定
-  }, [frameCount,fps]); // 依存配列 (frameCount が変更されたら再生成 - フレーム数が変わるとアニメーションの範囲が変わるため)
+  }, [frameCount, fps]); // 依存配列 (frameCount が変更されたら再生成 - フレーム数が変わるとアニメーションの範囲が変わるため)
 
   // useCallback フック: アニメーション停止処理
   const stopAnimation = useCallback(() => {
@@ -122,59 +116,25 @@ const IndexPage: PageFC = () => {
       stopAnimation(); // アニメーションを停止
     } else {
       // 停止中の場合
-			messageApi.info(`再生開始 ${fps}FPS`);
+      messageApi.info(`再生開始 ${fps}FPS`);
       startAnimation(); // アニメーションを再生開始
     }
   }, [isPlaying, startAnimation, stopAnimation]); // 依存配列 (isPlaying, startAnimation, stopAnimation に依存)
 
-  // useCallback フック: CSV ファイルアップロード時のハンドラー
-  const handleFileUpload = useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>) => {
-      const files = event.target.files; // アップロードされたファイルリストを取得
-      if (files && files.length > 0) {
-        // ファイルが選択されている場合
-        const file = files[0]; // 最初のファイルを取得
-        const reader = new FileReader(); // FileReader API を使用
-        reader.onload = function (e) {
-          // ファイルの読み込みが完了した時のイベントハンドラー
-          const csvText = e.target?.result as string; // 読み込んだファイルの内容 (CSV テキストデータ)
-          Papa.parse(csvText, {
-            // PapaParse を使用して CSV テキストデータを解析
-            header: true, // CSV の 1 行目をヘッダー行として扱う
-            dynamicTyping: true, // 数値や真偽値を自動的に型変換
-            complete: function (results) {
-              // CSV 解析完了時のコールバック関数
-              let data = results.data; // 解析結果のデータ部分 (フレームデータ)
-              if (
-                data.length > 0 &&
-                data[data.length - 1].length === 1 &&
-                data[data.length - 1][0] === null
-              ) {
-                data.pop(); // PapaParse が最終行を空行と解釈する場合の対応 (空行を削除)
-              }
-              setFrameData(data); // 解析したフレームデータを state に設定
-              setFrameCount(data.length); // 総フレーム数を state に設定
-              csvHeaderRef.current = results.meta.fields as string[]; // ヘッダー情報を ref に保存
-              setIsDataLoaded(true); // データロード完了状態を true に設定
-            },
-            error: function (error) {
-              // CSV 解析エラー時のコールバック関数
-              console.error("CSVファイルの解析エラー:", error); // エラーログ出力
-              setIsDataLoaded(false); // データロード失敗状態を true に設定
-            },
-          });
-        };
-        reader.onerror = function (error) {
-          // ファイル読み込みエラー時のイベントハンドラー
-          console.error("ファイル読み込みエラー:", error); // エラーログ出力
-          setIsDataLoaded(false); // データロード失敗状態を true に設定
-        };
-        reader.readAsText(file); // ファイルをテキストとして読み込む
-      }
-    },
-    []
-  ); // 依存配列 (initBones, updateBones - 今回は直接使用していないが、将来的に使用する可能性を考慮して記述)
+  const handleDataLoaded = useCallback((data: any[], header: string[]) => {
+    setUpdata(!update)
+    setFrameData(data.slice(skipHeadFrameNumber, data.length - skipTailFrameNumber));
+    setFrameCount(data.length - skipHeadFrameNumber - skipTailFrameNumber);
+    console.log("skip head:", skipHeadFrameNumber);
+    console.log("Data loaded:", data.slice(skipHeadFrameNumber, data.length - skipTailFrameNumber));
+    csvHeaderRef.current = header;
+    setIsDataLoaded(true);
+  }, [skipHeadFrameNumber,skipTailFrameNumber]);
 
+  const handleCsvError = useCallback((error: string) => {
+    console.error("CSV Error:", error);
+    setIsDataLoaded(false);
+  }, []);
   // JSX: コンポーネントの描画内容
   return (
     <main>
@@ -188,58 +148,37 @@ const IndexPage: PageFC = () => {
           min={1}
           max={1000}
           defaultValue={30}
-          onChange={(v) => setFps(v??1)}
-        /> ※FPSは一時停止後に再生すると反映されます
+          onChange={(v) => setFps(v ?? 1)}
+        />{" "}
+        ※FPSは一時停止後に再生すると反映されます
       </div>
       <br />
-      <Modal
-        title="CSVファイルの読み込み"
+      <CsvSettingsModal
         open={isModalOpen}
         onOk={handleOk}
         onCancel={handleCancel}
+        xMagification={xMagification}
+        yMagification={yMagification}
+        zMagification={zMagification}
+        skipHeadFrameNumber={skipHeadFrameNumber}
+        skipTailFrameNumber={skipTailFrameNumber}
+        keyFrameSize={keyframeSize}
+        setXMagification={setXMagification}
+        setYMagification={setYMagification}
+        setZMagification={setZMagification}
+        setSkipHeadFrameNumber={setSkipHeadFrameNumber}
+        setSkipTailFrameNumber={setSkipTailFrameNumber}
+        setKeyFrameSize={setkeyframeSize}
       >
-        <h3>1. 各軸の倍率を指定する</h3>
-        X軸方向の倍率 :{" "}
-        <InputNumber
-          min={-1000}
-          max={1000}
-          defaultValue={100}
-          onChange={(v) => setXMagification(v ?? 0)}
-        />
-        <br />
-        Y軸方向の倍率 :{" "}
-        <InputNumber
-          min={-1000}
-          max={1000}
-          defaultValue={-100}
-          onChange={(v) => setYMagification(v ?? 0)}
-        />
-        <br />
-        Z軸方向の倍率 :{" "}
-        <InputNumber
-          min={-1000}
-          max={1000}
-          defaultValue={100}
-          onChange={(v) => setZMagification(v ?? 0)}
-        />
-        <h3>2. CSVファイルを指定</h3>
-        <div>
-          <input
-            type="file"
-            id="csvUpload"
-            accept=".csv"
-            onChange={handleFileUpload}
-          />{" "}
-          {/* ファイルアップロード input 要素 */}
-        </div>
-      </Modal>
+        <CsvUploader onDataLoaded={handleDataLoaded} onError={handleCsvError} />
+      </CsvSettingsModal>
+
 
       {/* Viewer コンポーネントをレンダリング (3D ビュー部分) */}
       <Viewer
         frameData={frameData} // フレームデータを props として渡す
         frameCount={frameCount} // 総フレーム数を props として渡す
         currentFrame={currentFrame} // 現在のフレームインデックスを props として渡す
-        updateBones={updateBones} // ボーン更新関数 (空関数) を props として渡す (Viewer 内部で memoizedUpdateBones が使用される)
         csvHeader={csvHeaderRef.current} // CSV ヘッダー情報を props として渡す
         size={viewSize} // 3D ビューのサイズを props として渡す
         xMagification={xMagification} // X 軸方向の拡大率を props として渡す

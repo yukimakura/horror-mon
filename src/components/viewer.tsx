@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useCallback, useState } from "react";
 import * as BABYLON from "babylonjs"; // Babylon.js の機能をインポート
 import "babylonjs-loaders"; // Babylon.js ローダー (CSVなどのファイル形式を扱うために必要) をインポート
 import { workerData } from "worker_threads";
+import { isNumberObject } from "util/types";
 
 // Viewer コンポーネントの Props の型定義
 interface ViewerProps {
@@ -13,6 +14,7 @@ interface ViewerProps {
   xMagification: number;
   yMagification: number;
   zMagification: number;
+  keyFrameSize: number;
 }
 
 var average = function (arr: number[]): number {
@@ -29,6 +31,7 @@ const Viewer: React.FC<ViewerProps> = ({
   xMagification,
   yMagification,
   zMagification,
+  keyFrameSize
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null); // canvas 要素への参照を保持 (useRef フックを使用)
   const bonesRef = useRef<{ [key: string]: BABYLON.Bone }>({}); // ボーンオブジェクトを格納する連想配列への参照を保持
@@ -56,12 +59,23 @@ const Viewer: React.FC<ViewerProps> = ({
       BABYLON.Vector3.Zero(),
       scene
     ); // ArcRotateCamera を作成 (視点操作がしやすいカメラ)
+    // var camera = new BABYLON.UniversalCamera("UniversalCamera", new BABYLON.Vector3(0, 0, -10), scene);
+
+    // コントロールできるようにします。これを書かないとマウスなどの入力を受け付けません。
     camera.attachControl(canvas, true); // カメラ操作を canvas にアタッチ (マウスやタッチ操作で視点変更可能にする)
-    const light = new BABYLON.HemisphericLight(
-      "light",
-      new BABYLON.Vector3(0, 1, 0),
-      scene
-    ); // 半球ライトを作成 (シーン全体を柔らかく照らす)
+    let cnt = 0;
+    for (let i = 0; i < 3; i++) {
+      for (let j = 0; j < 3; j++) {
+        for (let k = 0; k < 3; k++) {
+          const light = new BABYLON.HemisphericLight(
+            `light${cnt}`,
+            new BABYLON.Vector3(i, j, k),
+            scene
+          ); // 半球ライトを作成 (シーン全体を柔らかく照らす)
+          cnt++;
+        }
+      }
+    }
 
     console.log("call init bone");
     initBones(scene, csvHeader); // ボーンを初期化 (シーンと CSV ヘッダー情報を渡す)
@@ -118,7 +132,7 @@ const Viewer: React.FC<ViewerProps> = ({
 
       const sphere = BABYLON.MeshBuilder.CreateSphere(
         boneName + "_mesh",
-        { diameter: 1 },
+        { diameter: keyFrameSize },
         scene
       ); // 球体メッシュを作成 (関節の視覚化用)
       sphere.skeleton = skeleton; // メッシュにスケルトンを関連付け
@@ -140,7 +154,6 @@ const Viewer: React.FC<ViewerProps> = ({
   // useCallback フック: ボーン更新処理をメモ化 (updateBonesInternal 関数)
   const updateBonesInternal = useCallback(
     (scene: BABYLON.Scene, frameIndex: number, header: string[]) => {
-      console.log(`updateBonesInternal Frame : ${frameIndex}`);
       if (!frameData || frameData.length <= frameIndex || !bonesRef.current) {
         // データが存在しない、またはフレームインデックスが範囲外、または bonesRef.current がない場合は処理を中断
         console.log("No data or bones found");
@@ -152,30 +165,23 @@ const Viewer: React.FC<ViewerProps> = ({
       // let worldbias = new BABYLON.Vector3(0, 0, 0);
       // スケルトンの中心をワールドの中心にするためのバイアスを設定
       // if (worldbias == null) {
-        worldbias = new BABYLON.Vector3(
-          average(
-            Object.keys(currentBoneData).map(
-              (boneName) => frame[boneName + "_X"]
-            )
-          ),
-          average(
-            Object.keys(currentBoneData).map(
-              (boneName) => frame[boneName + "_Y"]
-            )
-          ),
-          average(
-            Object.keys(currentBoneData).map(
-              (boneName) => frame[boneName + "_Z"]
-            )
-          )
-        );
-        // setBiasPosition(worldbias);
+      worldbias = new BABYLON.Vector3(
+        average(
+          Object.keys(currentBoneData).map((boneName) => frame[boneName + "_X"])
+        ),
+        average(
+          Object.keys(currentBoneData).map((boneName) => frame[boneName + "_Y"])
+        ),
+        average(
+          Object.keys(currentBoneData).map((boneName) => frame[boneName + "_Z"])
+        )
+      );
+      // setBiasPosition(worldbias);
 
       //   console.log("set biasPosition dummy", worldbias);
       // } else {
       //   worldbias = biasPosition;
       // }
-      console.log("world biasPosition", worldbias);
 
       // 各ボーンの位置を更新
       for (const boneName of Object.keys(currentBoneData)) {
