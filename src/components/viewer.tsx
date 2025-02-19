@@ -4,6 +4,15 @@ import "babylonjs-loaders"; // Babylon.js ローダー (CSVなどのファイル
 import { workerData } from "worker_threads";
 import { isNumberObject } from "util/types";
 
+export class KeypointPair {
+  keypoint1: string;
+  keypoint2: string;
+  constructor(keypoint1: string, keypoint2: string) {
+    this.keypoint1 = keypoint1;
+    this.keypoint2 = keypoint2;
+  }
+}
+
 // Viewer コンポーネントの Props の型定義
 interface ViewerProps {
   frameData: any[]; // CSV から解析されたフレームデータ (各フレームの関節位置情報)
@@ -15,6 +24,7 @@ interface ViewerProps {
   yMagification: number; // Y軸方向の拡大率
   zMagification: number; // Z軸方向の拡大率
   keyFrameSize: number; // キーフレームのサイズ
+  keypointPairList: KeypointPair[]; // ボーンペアリスト
 }
 
 // 配列の平均を計算する関数
@@ -33,9 +43,10 @@ const Viewer: React.FC<ViewerProps> = ({
   yMagification,
   zMagification,
   keyFrameSize,
+  keypointPairList,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null); // canvas 要素への参照を保持 (useRef フックを使用)
-  const bonesRef = useRef<{ [key: string]: BABYLON.Bone }>({}); // ボーンオブジェクトを格納する連想配列への参照を保持
+  const keypointsRef = useRef<{ [key: string]: BABYLON.Bone }>({}); // ボーンオブジェクトを格納する連想配列への参照を保持
   const skeletonRef = useRef<BABYLON.Skeleton | null>(null); // スケルトンオブジェクトへの参照を保持
   const sceneRef = useRef<BABYLON.Scene | null>(null); // Babylon.js の Scene オブジェクトへの参照を保持
   const [biasPosition, setBiasPosition] = useState<BABYLON.Vector3 | null>(
@@ -44,7 +55,7 @@ const Viewer: React.FC<ViewerProps> = ({
   let worldbias: BABYLON.Vector3 | null = null;
   const linesRef = useRef<{ [key: string]: BABYLON.LinesMesh }>({}); // 線メッシュを格納する連想配列への参照を保持
 
-  // useEffect フック: コンポーネントのマウント時と、props (csvHeader, currentFrame, updateBones) が変更された時に実行
+  // useEffect フック: コンポーネントのマウント時と、props (csvHeader, currentFrame, updateKeypoints) が変更された時に実行
   useEffect(() => {
     const canvas = canvasRef.current; // canvasRef から canvas 要素を取得
     if (!canvas) return; // canvas 要素が存在しない場合は処理を中断
@@ -80,9 +91,9 @@ const Viewer: React.FC<ViewerProps> = ({
       }
     }
 
-    console.log("call init bone");
-    initBones(scene, csvHeader); // ボーンを初期化 (シーンと CSV ヘッダー情報を渡す)
-    memoizedUpdateBones(scene, currentFrame, csvHeader); // 初期フレームを描画 (シーン、初期フレームインデックス、CSV ヘッダー情報を渡す)
+    console.log("call init keypoint");
+    initKeypoints(scene, csvHeader); // ボーンを初期化 (シーンと CSV ヘッダー情報を渡す)
+    memoizedUpdateKeypoints(scene, currentFrame, csvHeader); // 初期フレームを描画 (シーン、初期フレームインデックス、CSV ヘッダー情報を渡す)
 
     engine.runRenderLoop(() => {
       scene.render(); // レンダリングループを開始 (毎フレーム scene を描画)
@@ -109,100 +120,103 @@ const Viewer: React.FC<ViewerProps> = ({
   useEffect(() => {
     if (sceneRef.current) {
       // sceneRef.current が存在する場合のみ実行
-      updateBonesInternal(sceneRef.current, currentFrame, csvHeader); // ボーンを更新 (シーン、現在のフレームインデックス、CSV ヘッダー情報を渡す)
+      updateKeypointsInternal(sceneRef.current, currentFrame, csvHeader); // ボーンを更新 (シーン、現在のフレームインデックス、CSV ヘッダー情報を渡す)
     }
-  }, [currentFrame, csvHeader]); // useEffect の依存配列 (currentFrame, updateBones, csvHeader が変更されたら再実行)
+  }, [currentFrame, csvHeader]); // useEffect の依存配列 (currentFrame, updateKeypoints, csvHeader が変更されたら再実行)
 
-  // useCallback フック: ボーン初期化処理をメモ化 (initBones 関数)
-  const initBones = useCallback(
+  // useCallback フック: ボーン初期化処理をメモ化 (initKeypoints 関数)
+  const initKeypoints = useCallback(
     (scene: BABYLON.Scene, header: string[]) => {
       const skeleton = new BABYLON.Skeleton("skeleton", "skeleton", scene); // スケルトン (骨格) を作成
       skeletonRef.current = skeleton; // 作成したスケルトンを skeletonRef に保存
-      const bones: { [key: string]: BABYLON.Bone } = {}; // ボーンオブジェクトを格納する連想配列を初期化
+      const keypoints: { [key: string]: BABYLON.Bone } = {}; // ボーンオブジェクトを格納する連想配列を初期化
       // CSV ヘッダーからボーン名を生成 (例: "NOSE_X" -> "NOSE")
-      const boneNames = header
+      const keypointNames = header
         .filter((column) => column.endsWith("_X"))
         .map((column) => column.replace("_X", ""));
 
-      console.info("boneNames", boneNames);
+      console.info("keypointNames", keypointNames);
 
       const initialPosition = BABYLON.Vector3.Zero(); // ボーンの初期位置 (原点)
       const lines: { [key: string]: BABYLON.LinesMesh } = {}; // 線メッシュを格納する連想配列を初期化
 
       // ボーンとメッシュの作成
-      for (let i = 0; i < boneNames.length; i++) {
-        const boneName = boneNames[i]; // ボーン名を取得
-        const bone = new BABYLON.Bone(boneName, skeleton, null); // ボーンを作成 (親ボーンは null = ルートボーン)
-        bones[boneName] = bone; // 作成したボーンを bones 連想配列に格納
+      for (let i = 0; i < keypointNames.length; i++) {
+        const keypointName = keypointNames[i]; // ボーン名を取得
+        const keypoint = new BABYLON.Bone(keypointName, skeleton, null); // ボーンを作成 (親ボーンは null = ルートボーン)
+        keypoints[keypointName] = keypoint; // 作成したボーンを keypoints 連想配列に格納
 
         const sphere = BABYLON.MeshBuilder.CreateSphere(
-          boneName + "_mesh",
+          keypointName + "_mesh",
           { diameter: keyFrameSize },
           scene
         ); // 球体メッシュを作成 (関節の視覚化用)
         sphere.skeleton = skeleton; // メッシュにスケルトンを関連付け
 
-        const boneTransformNode = new BABYLON.TransformNode(
-          boneName + "_transformNode",
+        const keypointTransformNode = new BABYLON.TransformNode(
+          keypointName + "_transformNode",
           scene
         ); // TransformNode を作成 (ボーンの位置・回転・スケールを制御するための中間ノード)
-        boneTransformNode.position = initialPosition.clone(); // TransformNode の初期位置を設定
-        sphere.parent = boneTransformNode; // メッシュを TransformNode の子にする
+        keypointTransformNode.position = initialPosition.clone(); // TransformNode の初期位置を設定
+        sphere.parent = keypointTransformNode; // メッシュを TransformNode の子にする
         const axes = new BABYLON.Debug.AxesViewer(scene, 3); // デバッグ用の座標軸を作成
-        bone.linkTransformNode(boneTransformNode); // ボーンと TransformNode をリンク (ボーンの動きが TransformNode に反映される)
-
-        // 線メッシュの作成 (隣接するボーン間に線を作成)
-        if (i > 0) {
-          const previousBoneName = boneNames[i - 1]; // 前のボーンの名前を取得
-          const line = BABYLON.MeshBuilder.CreateLines(
-            `${boneName}_to_${previousBoneName}`,
-            {
-              points: [initialPosition, initialPosition], // 初期位置を同じにしておく
-              updatable: true, // 動的に更新可能にする
-            },
-            scene
-          ); // 線メッシュを作成
-          lines[`${boneName}_to_${previousBoneName}`] = line; // 作成した線メッシュを lines 連想配列に格納
-        }
+        keypoint.linkTransformNode(keypointTransformNode); // ボーンと TransformNode をリンク (ボーンの動きが TransformNode に反映される)
       }
-      bonesRef.current = bones; // 作成したボーンの連想配列を bonesRef に保存
+      
+      console.log("接続一覧", keypointPairList);
+      for (let keypointPair of keypointPairList) {
+        let keypointpairname = `${keypointPair.keypoint1}_to_${keypointPair.keypoint2}`;
+        // 線メッシュの作成 (隣接するボーン間に線を作成)
+        const line = BABYLON.MeshBuilder.CreateLines(
+          keypointpairname, // 線メッシュの名前を作成
+          {
+            points: [initialPosition, initialPosition], // 初期位置を同じにしておく
+            updatable: true, // 動的に更新可能にする
+          },
+          scene
+        ); // 線メッシュを作成
+        lines[keypointpairname] = line; // 作成した線メッシュを lines 連想配列に格納
+
+        console.info("keypointpairname", keypointpairname);
+      }
+      keypointsRef.current = keypoints; // 作成したボーンの連想配列を keypointsRef に保存
       scene.addSkeleton(skeleton); // シーンにスケルトンを追加
       skeletonRef.current = skeleton; // 作成したスケルトンを skeletonRef に保存
       linesRef.current = lines; // 作成した線メッシュの連想配列を linesRef に保存
     },
-    [keyFrameSize]
+    [keyFrameSize,keypointPairList]
   ); // useCallback の依存配列 (空 = 初回レンダリング時のみ実行)
 
-  // useCallback フック: ボーン更新処理をメモ化 (updateBonesInternal 関数)
-  const updateBonesInternal = useCallback(
+  // useCallback フック: ボーン更新処理をメモ化 (updateKeypointsInternal 関数)
+  const updateKeypointsInternal = useCallback(
     (scene: BABYLON.Scene, frameIndex: number, header: string[]) => {
-      if (!frameData || frameData.length <= frameIndex || !bonesRef.current) {
-        // データが存在しない、またはフレームインデックスが範囲外、または bonesRef.current がない場合は処理を中断
-        console.log("No data or bones found");
+      if (!frameData || frameData.length <= frameIndex || !keypointsRef.current) {
+        // データが存在しない、またはフレームインデックスが範囲外、または keypointsRef.current がない場合は処理を中断
+        console.log("No data or keypoints found");
         return;
       }
-      const currentBoneData = bonesRef.current; // bonesRef.current から現在のボーンオブジェクトの連想配列を取得
+      const currentKeypointData = keypointsRef.current; // keypointsRef.current から現在のボーンオブジェクトの連想配列を取得
       const frame = frameData[frameIndex]; // frameData から指定されたフレームのデータを取得
 
       // スケルトンの中心をワールドの中心にするためのバイアスを設定
       worldbias = new BABYLON.Vector3(
         average(
-          Object.keys(currentBoneData).map((boneName) => frame[boneName + "_X"])
+          Object.keys(currentKeypointData).map((keypointName) => frame[keypointName + "_X"])
         ),
         average(
-          Object.keys(currentBoneData).map((boneName) => frame[boneName + "_Y"])
+          Object.keys(currentKeypointData).map((keypointName) => frame[keypointName + "_Y"])
         ),
         average(
-          Object.keys(currentBoneData).map((boneName) => frame[boneName + "_Z"])
+          Object.keys(currentKeypointData).map((keypointName) => frame[keypointName + "_Z"])
         )
       );
 
       // 各ボーンの位置を更新
-      for (const boneName of Object.keys(currentBoneData)) {
-        // bones 連想配列のキー (ボーン名) をループ処理
-        const xColumnName = `${boneName}_X`; // X 座標のカラム名を作成 (例: "NOSE_X")
-        const yColumnName = `${boneName}_Y`; // Y 座標のカラム名を作成 (例: "NOSE_Y")
-        const zColumnName = `${boneName}_Z`; // Z 座標のカラム名を作成 (例: "NOSE_Z")
+      for (const keypointName of Object.keys(currentKeypointData)) {
+        // keypoints 連想配列のキー (ボーン名) をループ処理
+        const xColumnName = `${keypointName}_X`; // X 座標のカラム名を作成 (例: "NOSE_X")
+        const yColumnName = `${keypointName}_Y`; // Y 座標のカラム名を作成 (例: "NOSE_Y")
+        const zColumnName = `${keypointName}_Z`; // Z 座標のカラム名を作成 (例: "NOSE_Z")
 
         // ヘッダーから各座標のカラムインデックスを取得
         const xColumnIndex = header.indexOf(xColumnName);
@@ -214,45 +228,46 @@ const Viewer: React.FC<ViewerProps> = ({
           const x = (frame[xColumnName] - (worldbias?.x ?? 0)) * xMagification; // X 座標の値を取得
           const y = (frame[yColumnName] - (worldbias?.y ?? 0)) * yMagification; // Y 座標の値を取得
           const z = (frame[zColumnName] - (worldbias?.z ?? 0)) * zMagification; // Z 座標の値を取得
-          const transformNode = currentBoneData[boneName].getTransformNode(); // ボーンに対応する TransformNode を取得
+          const transformNode = currentKeypointData[keypointName].getTransformNode(); // ボーンに対応する TransformNode を取得
           transformNode?.position?.set(x, y, z); // ボーンに関連付けられた TransformNode の位置を XYZ 座標で設定 (ボーンの位置を更新)
 
           // 線メッシュの位置と長さを更新
-          const boneIndex = Object.keys(currentBoneData).indexOf(boneName); // 現在のボーンのインデックスを取得
-          if (boneIndex > 0) {
+          const keypointIndex = Object.keys(currentKeypointData).indexOf(keypointName); // 現在のボーンのインデックスを取得
+          if (keypointIndex > 0) {
             // 最初のボーンでない場合 (前のボーンが存在する場合)
-            const previousBoneName =
-              Object.keys(currentBoneData)[boneIndex - 1]; // 前のボーンの名前を取得
+            const previousKeypointName =
+              Object.keys(currentKeypointData)[keypointIndex - 1]; // 前のボーンの名前を取得
             const previousTransformNode =
-              currentBoneData[previousBoneName].getTransformNode(); // 前のボーンに対応する TransformNode を取得
-            const lineName = `${boneName}_to_${previousBoneName}`; // 線メッシュの名前を作成
-            const line = linesRef.current[lineName]; // 線メッシュを取得
-            if (line) {
-              // 線メッシュが存在する場合
-              const points = [
-                transformNode!.position,
-                previousTransformNode!.position,
-              ]; // 線メッシュの頂点座標を更新
-              // line.updateVerticesData(
-              //   BABYLON.VertexBuffer.PositionKind,
-              //   points,
-              //   false,
-              //   false
-              // ); // 頂点データを更新
-              linesRef.current[lineName] = BABYLON.MeshBuilder.CreateLines(
-                lineName ,
-                {
-                  points: points,
-                  updatable: true,
-                  instance: line,
-                }
-              );
+              currentKeypointData[previousKeypointName].getTransformNode(); // 前のボーンに対応する TransformNode を取得
+
+            //現在のボーンにつながるボーンを検索
+            const keypointPairs = keypointPairList.filter((pair) => pair.keypoint1 === keypointName);  
+            for (let keypointPair of keypointPairs) {
+              // 線メッシュの名前を作成
+              const lineName = `${keypointPair.keypoint1}_to_${keypointPair.keypoint2}`;
+              const line = linesRef.current[lineName]; // 線メッシュを取得
+              if (line) {
+                // 線メッシュが存在する場合
+                const points = [
+                  transformNode!.position,
+                  currentKeypointData[keypointPair.keypoint2].getTransformNode()!.position,
+                ]; // 線メッシュの頂点座標を更新
+                linesRef.current[lineName] = BABYLON.MeshBuilder.CreateLines(
+                  lineName,
+                  {
+                    points: points,
+                    updatable: true,
+                    instance: line,
+                  }
+                );
+              }
             }
+            
           }
         } else {
           // カラムインデックスが取得できなかった場合は警告ログを出力 (CSV データに問題がある可能性)
           console.warn(
-            `フレーム ${frameIndex} のボーン ${boneName} のデータが見つかりません`
+            `フレーム ${frameIndex} のボーン ${keypointName} のデータが見つかりません`
           );
         }
       }
@@ -260,14 +275,14 @@ const Viewer: React.FC<ViewerProps> = ({
     [frameData, xMagification, yMagification, zMagification]
   ); // useCallback の依存配列 (frameData が変更されたら再生成)
 
-  // 親コンポーネントから渡された updateBones をラップして useCallback でメモ化
-  // (props として渡された updateBones は空関数だが、このコンポーネント内部の updateBonesInternal を使用するようにするため)
-  const memoizedUpdateBones = useCallback(
+  // 親コンポーネントから渡された updateKeypoints をラップして useCallback でメモ化
+  // (props として渡された updateKeypoints は空関数だが、このコンポーネント内部の updateKeypointsInternal を使用するようにするため)
+  const memoizedUpdateKeypoints = useCallback(
     (scene: BABYLON.Scene, frameIndex: number, csvHeader: string[]) => {
-      console.info("call memoizedUpdateBones");
-      updateBonesInternal(scene, frameIndex, csvHeader);
+      console.info("call memoizedUpdateKeypoints");
+      updateKeypointsInternal(scene, frameIndex, csvHeader);
     },
-    [updateBonesInternal, csvHeader] // 依存配列に updateBonesInternal と csvHeader を指定
+    [updateKeypointsInternal, csvHeader] // 依存配列に updateKeypointsInternal と csvHeader を指定
   );
 
   // JSX: コンポーネントの描画内容

@@ -1,9 +1,10 @@
 import React, { useState, useCallback } from "react";
 import Papa from "papaparse";
 import { Button, message } from "antd";
+import { horror_mon_metadata } from "../entities/horror_mon_metadata";
 
 interface CsvUploaderProps {
-  onDataLoaded: (data: any[], header: string[]) => void;
+  onDataLoaded: (data: any[], header: string[],metadata:horror_mon_metadata) => void;
   onError: (error: string) => void;
 }
 
@@ -19,7 +20,22 @@ const CsvUploader: React.FC<CsvUploaderProps> = ({ onDataLoaded, onError }) => {
         const file = files[0];
         const reader = new FileReader();
         reader.onload = function (e) {
-          const csvText = e.target?.result as string;
+          let csvText = e.target?.result as string;
+          let metaheader : horror_mon_metadata = new horror_mon_metadata();
+
+          //もし、Horrormon用ヘッダーがあったらヘッダー解析
+          //ヘッダーの構造はhorror_mon_headerをjson化したもの
+          const startKeyword = "===HORRORMON_META_START===";
+          const endKeyword = "===HORRORMON_META_END===";
+          if(csvText.startsWith(startKeyword)){
+            let headerEndIndex = csvText.indexOf(endKeyword);
+            let headerText = csvText.substring(0,headerEndIndex).replace(startKeyword,'');
+            console.log(headerText);
+            metaheader = JSON.parse(headerText);
+            csvText = csvText.substring(headerText.length+startKeyword.length+endKeyword.length+2 //+1は改行文字
+                                          ,csvText.length);
+            console.log(metaheader);
+          }
           Papa.parse(csvText, {
             header: true,
             dynamicTyping: true,
@@ -32,7 +48,7 @@ const CsvUploader: React.FC<CsvUploaderProps> = ({ onDataLoaded, onError }) => {
               ) {
                 data.pop();
               }
-              onDataLoaded(data, results.meta.fields as string[]);
+              onDataLoaded(data, results.meta.fields as string[],metaheader);
               setIsLoading(false);
               messageApi.success("CSV file parsed successfully!");
             },
@@ -64,7 +80,7 @@ const CsvUploader: React.FC<CsvUploaderProps> = ({ onDataLoaded, onError }) => {
       <input
         type="file"
         id="csvUpload"
-        accept=".csv"
+        accept=".csv, .hmcsv"
         onChange={handleFileUpload}
         disabled={isLoading}
       />

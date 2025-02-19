@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useRef } from "react";
-import Viewer from "../components/viewer"; // Viewer コンポーネントをインポート
+import Viewer, { KeypointPair } from "../components/viewer"; // Viewer コンポーネントをインポート
 import AnimationControls from "../components/animation_controls"; // AnimationControls コンポーネントをインポート
+import { horror_mon_metadata } from "../entities/horror_mon_metadata"; // AnimationControls コンポーネントをインポート
 import Papa from "papaparse"; // CSV パーサーライブラリ PapaParse をインポート
 
 import type { HeadFC, PageFC } from "gatsby"; // Gatsby 関連の型定義をインポート
@@ -10,6 +11,7 @@ import type { InputNumberProps } from "antd";
 import { InputNumber, Button, message } from "antd";
 import CsvUploader from "../components/csv_uploader";
 import CsvSettingsModal from "../components/csv_settings_modal";
+import MetadataExamples from "../components/metadata_examples";
 
 // IndexPage コンポーネントの実装 (Gatsby のページコンポーネント)
 const IndexPage: PageFC = () => {
@@ -31,7 +33,7 @@ const IndexPage: PageFC = () => {
   const [isDataLoaded, setIsDataLoaded] = useState<boolean>(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [messageApi, contextHolder] = message.useMessage();
-  const [update,setUpdata]=useState<boolean>(false); // 強制レンダリング用
+  const [update, setUpdata] = useState<boolean>(false); // 強制レンダリング用
 
   const [xMagification, setXMagification] = useState(100);
   const [yMagification, setYMagification] = useState(-100);
@@ -39,6 +41,8 @@ const IndexPage: PageFC = () => {
   const [skipHeadFrameNumber, setSkipHeadFrameNumber] = useState(0);
   const [skipTailFrameNumber, setSkipTailFrameNumber] = useState(0);
   const [keyframeSize, setkeyframeSize] = useState(3);
+  const [horrorMonMetadata, setHorrorMonMetadata] =
+    useState<horror_mon_metadata>(new horror_mon_metadata());
 
   const [fps, setFps] = useState(30);
 
@@ -59,7 +63,6 @@ const IndexPage: PageFC = () => {
 
   // 3D ビューのサイズを定義 (props として Viewer コンポーネントに渡す)
   const viewSize = { width: "90vw", height: "85vh" }; // 例：固定サイズ (親コンポーネントからサイズ指定)
-
 
   // useCallback フック: シークバーの値変更時のハンドラー
   const handleSliderChange = useCallback(
@@ -121,15 +124,24 @@ const IndexPage: PageFC = () => {
     }
   }, [isPlaying, startAnimation, stopAnimation]); // 依存配列 (isPlaying, startAnimation, stopAnimation に依存)
 
-  const handleDataLoaded = useCallback((data: any[], header: string[]) => {
-    setUpdata(!update)
-    setFrameData(data.slice(skipHeadFrameNumber, data.length - skipTailFrameNumber));
-    setFrameCount(data.length - skipHeadFrameNumber - skipTailFrameNumber);
-    console.log("skip head:", skipHeadFrameNumber);
-    console.log("Data loaded:", data.slice(skipHeadFrameNumber, data.length - skipTailFrameNumber));
-    csvHeaderRef.current = header;
-    setIsDataLoaded(true);
-  }, [skipHeadFrameNumber,skipTailFrameNumber]);
+  const handleDataLoaded = useCallback(
+    (data: any[], header: string[], metadata: horror_mon_metadata) => {
+      setUpdata(!update);
+      setFrameData(
+        data.slice(skipHeadFrameNumber, data.length - skipTailFrameNumber)
+      );
+      setFrameCount(data.length - skipHeadFrameNumber - skipTailFrameNumber);
+      setHorrorMonMetadata(metadata);
+      console.log("skip head:", skipHeadFrameNumber);
+      console.log(
+        "Data loaded:",
+        data.slice(skipHeadFrameNumber, data.length - skipTailFrameNumber)
+      );
+      csvHeaderRef.current = header;
+      setIsDataLoaded(true);
+    },
+    [skipHeadFrameNumber, skipTailFrameNumber, horrorMonMetadata]
+  );
 
   const handleCsvError = useCallback((error: string) => {
     console.error("CSV Error:", error);
@@ -173,7 +185,6 @@ const IndexPage: PageFC = () => {
         <CsvUploader onDataLoaded={handleDataLoaded} onError={handleCsvError} />
       </CsvSettingsModal>
 
-
       {/* Viewer コンポーネントをレンダリング (3D ビュー部分) */}
       <Viewer
         frameData={frameData} // フレームデータを props として渡す
@@ -184,6 +195,9 @@ const IndexPage: PageFC = () => {
         xMagification={xMagification} // X 軸方向の拡大率を props として渡す
         yMagification={yMagification} // y 軸方向の拡大率を props として渡す
         zMagification={zMagification} // z 軸方向の拡大率を props として渡す
+        keypointPairList={horrorMonMetadata.keypoeint_connections.map(
+          (x) => new KeypointPair(x.from_keypoint, x.to_keypoint)
+        )} // ボーンペアリストを props として渡す
       />
       {/* AnimationControls コンポーネントをレンダリング (アニメーションコントロール UI 部分) */}
       <AnimationControls
@@ -194,6 +208,8 @@ const IndexPage: PageFC = () => {
         isPlaying={isPlaying} // 再生状態を props として渡す
         isDataLoaded={isDataLoaded} // データロード状態を props として渡す
       />
+
+      <MetadataExamples></MetadataExamples>
     </main>
   );
 };
