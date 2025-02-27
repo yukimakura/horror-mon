@@ -12,11 +12,14 @@ import { InputNumber, Button, message } from "antd";
 import CsvUploader from "../components/csv_uploader";
 import CsvSettingsModal from "../components/csv_settings_modal";
 import MetadataExamples from "../components/metadata_examples";
+import { RemoveScroll } from "react-remove-scroll";
+import { SkeletonDrawer } from "../entities/skeleton_drawer";
+import { keypoint_connection } from "../entities/keypoint_connection";
 
 // IndexPage コンポーネントの実装 (Gatsby のページコンポーネント)
 const IndexPage: PageFC = () => {
   // State フック: フレームデータ (CSV から解析されたデータ) を管理する state
-  const [frameData, setFrameData] = useState<any[]>([]);
+  const [fileLoadCount, setFileLoadCount] = useState<number>(0);
   // State フック: 総フレーム数を管理する state
   const [frameCount, setFrameCount] = useState<number>(0);
   // State フック: 現在表示しているフレームのインデックスを管理する state
@@ -25,8 +28,6 @@ const IndexPage: PageFC = () => {
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   // useRef フック: アニメーションインターバルIDを保持 (clearInterval でクリアするために必要)
   const animationInterval = useRef<number | null>(null);
-  // useRef フック: Babylon.js シーンオブジェクトを保持 (Viewer コンポーネントで初期化される)
-  const sceneRef = useRef<BABYLON.Scene | null>(null);
   // useRef フック: CSV ヘッダー情報を保持
   const csvHeaderRef = useRef<string[]>([]);
   // State フック: CSV データがロード済みかどうかを管理する state (UI の制御に利用)
@@ -40,11 +41,13 @@ const IndexPage: PageFC = () => {
   const [zMagification, setZMagification] = useState(100);
   const [skipHeadFrameNumber, setSkipHeadFrameNumber] = useState(0);
   const [skipTailFrameNumber, setSkipTailFrameNumber] = useState(0);
-  const [keyframeSize, setkeyframeSize] = useState(3);
+  const [keyPointRadiusSize, setKeyPointRadiusSize] = useState(1);
   const [horrorMonMetadata, setHorrorMonMetadata] =
     useState<horror_mon_metadata>(new horror_mon_metadata());
 
+  const [skeletons, setSkeletons] = useState<SkeletonDrawer[]>([]);
   const [fps, setFps] = useState(30);
+  const [isScrollLock, setIsScrollLock] = useState(true);
 
   const showModal = () => {
     setIsModalOpen(true);
@@ -126,12 +129,36 @@ const IndexPage: PageFC = () => {
 
   const handleDataLoaded = useCallback(
     (data: any[], header: string[], metadata: horror_mon_metadata) => {
+      const colors = [
+        "#FF0000",
+        "#00FF00",
+        "#0000FF",
+        "#FFFF00",
+        "#FF00FF",
+        "#00FFFF",
+        "#FF00FF",
+        "#FFFFFF",
+        "#000000",
+      ];
       setUpdata(!update);
-      setFrameData(
-        data.slice(skipHeadFrameNumber, data.length - skipTailFrameNumber)
-      );
       setFrameCount(data.length - skipHeadFrameNumber - skipTailFrameNumber);
       setHorrorMonMetadata(metadata);
+
+      setSkeletons(
+        skeletons.concat([
+          new SkeletonDrawer(
+            data,
+            header,
+            xMagification,
+            yMagification,
+            zMagification,
+            metadata.keypoeint_connections,
+            BABYLON.Color3.FromHexString(colors[fileLoadCount]),
+            keyPointRadiusSize
+          ),
+        ])
+      );
+      setFileLoadCount(fileLoadCount + 1);
       console.log("skip head:", skipHeadFrameNumber);
       console.log(
         "Data loaded:",
@@ -140,7 +167,14 @@ const IndexPage: PageFC = () => {
       csvHeaderRef.current = header;
       setIsDataLoaded(true);
     },
-    [skipHeadFrameNumber, skipTailFrameNumber, horrorMonMetadata]
+    [
+      skipHeadFrameNumber,
+      skipTailFrameNumber,
+      horrorMonMetadata,
+      skeletons,
+      fileLoadCount,
+      keyPointRadiusSize,
+    ]
   );
 
   const handleCsvError = useCallback((error: string) => {
@@ -159,10 +193,14 @@ const IndexPage: PageFC = () => {
         <InputNumber
           min={1}
           max={1000}
-          defaultValue={30}
+          defaultValue={60}
           onChange={(v) => setFps(v ?? 1)}
         />{" "}
         ※FPSは一時停止後に再生すると反映されます
+
+        <Button type="primary" onClick={() => setIsScrollLock(!isScrollLock)}>
+        スクロールロック{isScrollLock ? '解除' : ''}
+      </Button>
       </div>
       <br />
       <CsvSettingsModal
@@ -174,31 +212,25 @@ const IndexPage: PageFC = () => {
         zMagification={zMagification}
         skipHeadFrameNumber={skipHeadFrameNumber}
         skipTailFrameNumber={skipTailFrameNumber}
-        keyFrameSize={keyframeSize}
+        keyPointRadiusSize={keyPointRadiusSize}
         setXMagification={setXMagification}
         setYMagification={setYMagification}
         setZMagification={setZMagification}
         setSkipHeadFrameNumber={setSkipHeadFrameNumber}
         setSkipTailFrameNumber={setSkipTailFrameNumber}
-        setKeyFrameSize={setkeyframeSize}
+        setKeyPointRadiusSize={setKeyPointRadiusSize}
       >
         <CsvUploader onDataLoaded={handleDataLoaded} onError={handleCsvError} />
       </CsvSettingsModal>
 
       {/* Viewer コンポーネントをレンダリング (3D ビュー部分) */}
-      <Viewer
-        frameData={frameData} // フレームデータを props として渡す
-        frameCount={frameCount} // 総フレーム数を props として渡す
-        currentFrame={currentFrame} // 現在のフレームインデックスを props として渡す
-        csvHeader={csvHeaderRef.current} // CSV ヘッダー情報を props として渡す
-        size={viewSize} // 3D ビューのサイズを props として渡す
-        xMagification={xMagification} // X 軸方向の拡大率を props として渡す
-        yMagification={yMagification} // y 軸方向の拡大率を props として渡す
-        zMagification={zMagification} // z 軸方向の拡大率を props として渡す
-        keypointPairList={horrorMonMetadata.keypoeint_connections.map(
-          (x) => new KeypointPair(x.from_keypoint, x.to_keypoint)
-        )} // ボーンペアリストを props として渡す
-      />
+      <RemoveScroll enabled={isScrollLock}>
+        <Viewer
+          currentFrame={currentFrame} // 現在のフレームインデックスを props として渡す
+          size={viewSize} // 3D ビューのサイズを props として渡す
+          skeletons={skeletons}
+        />
+      </RemoveScroll>
       {/* AnimationControls コンポーネントをレンダリング (アニメーションコントロール UI 部分) */}
       <AnimationControls
         frameCount={frameCount} // 総フレーム数を props として渡す

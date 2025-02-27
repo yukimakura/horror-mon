@@ -10,13 +10,13 @@ interface CsvSettingsModalProps {
   zMagification: number;
   skipHeadFrameNumber: number;
   skipTailFrameNumber: number;
-  keyFrameSize: number;
+  keyPointRadiusSize: number;
   setXMagification: (value: number) => void;
   setYMagification: (value: number) => void;
   setZMagification: (value: number) => void;
   setSkipHeadFrameNumber: (value: number) => void;
   setSkipTailFrameNumber: (value: number) => void;
-  setKeyFrameSize: (value: number) => void;
+  setKeyPointRadiusSize: (value: number) => void;
   children: React.ReactNode;
 }
 
@@ -29,13 +29,13 @@ const CsvSettingsModal: React.FC<CsvSettingsModalProps> = ({
   zMagification,
   skipHeadFrameNumber,
   skipTailFrameNumber,
-  keyFrameSize,
+  keyPointRadiusSize,
   setXMagification,
   setYMagification,
   setZMagification,
   setSkipHeadFrameNumber,
   setSkipTailFrameNumber,
-  setKeyFrameSize,
+  setKeyPointRadiusSize,
   children,
 }) => {
   return (
@@ -84,12 +84,12 @@ const CsvSettingsModal: React.FC<CsvSettingsModalProps> = ({
         onChange={(v) => setSkipTailFrameNumber(v ?? 0)}
       />
       <br />
-      キーフレームのサイズ:{" "}
+      各関節の可視化サイズ:{" "}
       <InputNumber
         min={0}
         max={1000}
-        defaultValue={keyFrameSize}
-        onChange={(v) => setKeyFrameSize(v ?? 0)}
+        defaultValue={keyPointRadiusSize}
+        onChange={(v) => setKeyPointRadiusSize(v ?? 0)}
       />
       <h3>2. CSVファイルを指定</h3>
       {children}
