@@ -99,7 +99,7 @@ const MetadataExamples: React.FC = () => {
   2. テキストの先頭に以下に挙げる例を追加する <br/>
   <pre>
     <code>
-      <img src={imgGatsby} height="300px" />
+      <img src={imgGatsby} style={{width: "95vw"} } />
     </code>
   </pre>
   3. ファイル名の拡張子を .csv から .hmcsv に変更する <br/>

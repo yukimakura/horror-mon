@@ -270,7 +270,7 @@ const IndexPage: PageFC = () => {
         />
       </Drawer>
 
-      <MetadataExamples></MetadataExamples>
+      <MetadataExamples />
     </main>
   );
 };
