@@ -20,10 +20,11 @@ interface ViewerProps {
   currentFrame: number; // 現在表示しているフレームのインデックス
   size: { width: string | number; height: string | number }; // 3D ビューのサイズ (親コンポーネントから指定)
   skeletons: Array<SkeletonDrawer>; // スケルトンデータ
+  forForceRedraw: boolean;
 }
 
 // Viewer コンポーネントの実装 (関数コンポーネント)
-const Viewer: React.FC<ViewerProps> = ({ currentFrame, size, skeletons }) => {
+const Viewer: React.FC<ViewerProps> = ({ currentFrame, size, skeletons  , forForceRedraw}) => {
   const canvasRef = useRef<HTMLCanvasElement>(null); // canvas 要素への参照を保持 (useRef フックを使用)
   const sceneRef = useRef<BABYLON.Scene | null>(null); // Babylon.js の Scene オブジェクトへの参照を保持
   const [biasPosition, setBiasPosition] = useState<BABYLON.Vector3 | null>(
@@ -106,7 +107,7 @@ const Viewer: React.FC<ViewerProps> = ({ currentFrame, size, skeletons }) => {
       // sceneRef.current が存在する場合のみ実行
       updateKeypointsInternal(currentFrame); // ボーンを更新 (シーン、現在のフレームインデックス、CSV ヘッダー情報を渡す)
     }
-  }, [currentFrame, skeletons]); // useEffect の依存配列 (currentFrame, updateKeypoints, csvHeader が変更されたら再実行)
+  }, [currentFrame, skeletons,forForceRedraw]); // useEffect の依存配列 (currentFrame, updateKeypoints, csvHeader が変更されたら再実行)
 
   // useCallback フック: ボーン初期化処理をメモ化 (initKeypoints 関数)
   const initKeypoints = useCallback(

@@ -11,18 +11,13 @@ export class SkeletonDrawer {
     public KeypointNames: string[] = [];
     public InstanceUniqueId: string = "";
     public Color: BABYLON.Color3;
+    public IsShow: boolean = true;
     xMagification: number; // X軸方向の拡大率
     yMagification: number; // Y軸方向の拡大率
     zMagification: number; // Z軸方向の拡大率
     keypointPairList: keypoint_connection[] = [];
     myMaterial!: BABYLON.StandardMaterial;
     keyPointRadiusSize: number;
-    // keypointsRef!: React.MutableRefObject<{
-    //     [key: string]: BABYLON.Bone;
-    // }>// ボーンオブジェクトを格納する連想配列への参照を保持
-    // linesRef!: React.MutableRefObject<{
-    //     [key: string]: BABYLON.LinesMesh;
-    // }>// 線メッシュを格納する連想配列への参照を保持
 
     constructor(
         frames: Array<any>,
@@ -64,19 +59,6 @@ export class SkeletonDrawer {
     private average(arr: number[]): number {
         return arr.reduce((prev, current) => prev + current, 0) / arr.length;
     };
-
-    // public RefInjector(
-    //     keypointsRef: React.MutableRefObject<{
-    //         [key: string]: BABYLON.Bone;
-    //     }>,
-    //     linesRef: React.MutableRefObject<{
-    //         [key: string]: BABYLON.LinesMesh;
-    //     }>
-    // ) {
-    //     this.keypointsRef = keypointsRef;
-    //     this.linesRef = linesRef;
-    // }
-
 
 
     public InitKeypoints(
@@ -162,6 +144,7 @@ export class SkeletonDrawer {
             [key: string]: BABYLON.LinesMesh;
         }>// 線メッシュを格納する連想配列への参照を保持
     ) {
+
         if (
             !this.Frames ||
             this.Frames.length <= frameIndex ||
@@ -212,6 +195,7 @@ export class SkeletonDrawer {
                 const z = (frame[this.getRawKeynpointName(zColumnName)] - (worldbias?.z ?? 0)) * this.zMagification; // Z 座標の値を取得
                 const transformNode = currentKeypointData[keypointName].getTransformNode(); // ボーンに対応する TransformNode を取得
                 transformNode?.position?.set(x, y, z); // ボーンに関連付けられた TransformNode の位置を XYZ 座標で設定 (ボーンの位置を更新)
+                transformNode?.setEnabled(this.IsShow)
                 // 線メッシュの位置と長さを更新
                 const keypointIndex =
                     Object.keys(currentKeypointData).indexOf(keypointName); // 現在のボーンのインデックスを取得
@@ -246,8 +230,9 @@ export class SkeletonDrawer {
                                     updatable: true,
                                     instance: line,
                                     material: this.myMaterial
-                                }
+                                },
                             );
+                            linesRef.current[lineName].isVisible = this.IsShow;
 
 
 

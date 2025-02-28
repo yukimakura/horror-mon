@@ -8,7 +8,7 @@ import type { HeadFC, PageFC } from "gatsby"; // Gatsby 関連の型定義をイ
 import * as BABYLON from "babylonjs"; // Babylon.js の機能をインポート
 import { Modal } from "antd";
 import type { InputNumberProps } from "antd";
-import { InputNumber, Button, message } from "antd";
+import { InputNumber, Button, message, List, Switch, Drawer } from "antd";
 import CsvUploader from "../components/csv_uploader";
 import CsvSettingsModal from "../components/csv_settings_modal";
 import MetadataExamples from "../components/metadata_examples";
@@ -48,6 +48,13 @@ const IndexPage: PageFC = () => {
   const [skeletons, setSkeletons] = useState<SkeletonDrawer[]>([]);
   const [fps, setFps] = useState(30);
   const [isScrollLock, setIsScrollLock] = useState(true);
+
+  const [openVisibleDrawer, setOpenVisibleDrawer] = useState(false);
+  const [forceRedrawState, setForceRedrawState] = useState(false);
+
+  const forceRedraw = () => {
+    setForceRedrawState(!forceRedrawState);
+  };
 
   const showModal = () => {
     setIsModalOpen(true);
@@ -197,10 +204,13 @@ const IndexPage: PageFC = () => {
           onChange={(v) => setFps(v ?? 1)}
         />{" "}
         ※FPSは一時停止後に再生すると反映されます
+        <Button type="primary" onClick={() => setIsScrollLock(!isScrollLock)} style={{ marginLeft: "20px" }}>
+          スクロールロック{isScrollLock ? "解除" : ""}
+        </Button>
 
-        <Button type="primary" onClick={() => setIsScrollLock(!isScrollLock)}>
-        スクロールロック{isScrollLock ? '解除' : ''}
-      </Button>
+        <Button type="primary" onClick={() => setOpenVisibleDrawer(true)} style={{ marginLeft: "20px" }}>
+          モデル可視化設定
+        </Button>
       </div>
       <br />
       <CsvSettingsModal
@@ -229,6 +239,7 @@ const IndexPage: PageFC = () => {
           currentFrame={currentFrame} // 現在のフレームインデックスを props として渡す
           size={viewSize} // 3D ビューのサイズを props として渡す
           skeletons={skeletons}
+          forForceRedraw={forceRedrawState}
         />
       </RemoveScroll>
       {/* AnimationControls コンポーネントをレンダリング (アニメーションコントロール UI 部分) */}
@@ -240,6 +251,24 @@ const IndexPage: PageFC = () => {
         isPlaying={isPlaying} // 再生状態を props として渡す
         isDataLoaded={isDataLoaded} // データロード状態を props として渡す
       />
+      <Drawer title="モデルの可視化設定" onClose={() => setOpenVisibleDrawer(false)} open={openVisibleDrawer}>
+        <List
+          bordered
+          dataSource={skeletons}
+          renderItem={(item) => (
+            <List.Item>
+              {item.InstanceUniqueId} :{" "}
+              <Switch
+                defaultChecked
+                onChange={() => {
+                  (item.IsShow = !item.IsShow)
+                  forceRedraw();
+                }}
+              />
+            </List.Item>
+          )}
+        />
+      </Drawer>
 
       <MetadataExamples></MetadataExamples>
     </main>
