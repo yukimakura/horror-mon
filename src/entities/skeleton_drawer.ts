@@ -199,17 +199,24 @@ export class SkeletonDrawer {
                 // 線メッシュの位置と長さを更新
                 const keypointIndex =
                     Object.keys(currentKeypointData).indexOf(keypointName); // 現在のボーンのインデックスを取得
-                if (keypointIndex > 0) {
-                    // 最初のボーンでない場合 (前のボーンが存在する場合)
-                    const previousKeypointName =
-                        Object.keys(currentKeypointData)[keypointIndex - 1]; // 前のボーンの名前を取得
-                    const previousTransformNode =
-                        currentKeypointData[previousKeypointName].getTransformNode(); // 前のボーンに対応する TransformNode を取得
 
-                    //現在のボーンにつながるボーンを検索
-                    const keypointPairs = this.keypointPairList.filter(
-                        (pair) => pair.from_keypoint === keypointName
-                    );
+            } else {
+                // カラムインデックスが取得できなかった場合は警告ログを出力 (CSV データに問題がある可能性)
+                console.warn(
+                    `フレーム ${frameIndex} のボーン ${keypointName} のデータが見つかりません`
+                );
+            }
+
+
+            // 各関節をつなぐ線の更新
+            for (const keypointName of Object.keys(currentKeypointData).filter(x => x.startsWith(this.InstanceUniqueId))) {
+
+                //現在のボーンにつながるボーンを検索
+                const keypointPairs = this.keypointPairList.filter(
+                    (pair) => pair.from_keypoint == keypointName
+                );
+                const transformNode = currentKeypointData[keypointName].getTransformNode(); // ボーンに対応する TransformNode を取得
+                for (const keypointName of Object.keys(currentKeypointData).filter(x => x.startsWith(this.InstanceUniqueId))) {
                     for (let keypointPair of keypointPairs) {
                         // 線メッシュの名前を作成
                         const lineName = `${keypointPair.from_keypoint}_to_${keypointPair.to_keypoint}`;
@@ -234,18 +241,11 @@ export class SkeletonDrawer {
                             );
                             linesRef.current[lineName].isVisible = this.IsShow;
 
-
-
                         }
                     }
                 }
-            } else {
-                // カラムインデックスが取得できなかった場合は警告ログを出力 (CSV データに問題がある可能性)
-                console.warn(
-                    `フレーム ${frameIndex} のボーン ${keypointName} のデータが見つかりません`
-                );
             }
         }
-    }
 
+    }
 }

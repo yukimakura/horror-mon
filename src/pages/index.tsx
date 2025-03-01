@@ -72,7 +72,7 @@ const IndexPage: PageFC = () => {
   };
 
   // 3D ビューのサイズを定義 (props として Viewer コンポーネントに渡す)
-  const viewSize = { width: "90vw", height: "85vh" }; // 例：固定サイズ (親コンポーネントからサイズ指定)
+  const viewSize = {  width: "96vw", height: "85vh"}; // 例：固定サイズ (親コンポーネントからサイズ指定)
 
   // useCallback フック: シークバーの値変更時のハンドラー
   const handleSliderChange = useCallback(
@@ -260,8 +260,8 @@ const IndexPage: PageFC = () => {
               {item.InstanceUniqueId} :{" "}
               <Switch
                 defaultChecked
-                onChange={() => {
-                  (item.IsShow = !item.IsShow)
+                onChange={x => {
+                  (item.IsShow = x)
                   forceRedraw();
                 }}
               />
