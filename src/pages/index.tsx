@@ -47,7 +47,7 @@ const IndexPage: PageFC = () => {
 
   const [skeletons, setSkeletons] = useState<SkeletonDrawer[]>([]);
   const [fps, setFps] = useState(30);
-  const [isScrollLock, setIsScrollLock] = useState(true);
+  const [isScrollLock, setIsScrollLock] = useState(false);
 
   const [openVisibleDrawer, setOpenVisibleDrawer] = useState(false);
   const [forceRedrawState, setForceRedrawState] = useState(false);
