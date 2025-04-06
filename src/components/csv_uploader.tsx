@@ -80,7 +80,6 @@ const CsvUploader: React.FC<CsvUploaderProps> = ({ onDataLoaded, onError }) => {
       <input
         type="file"
         id="csvUpload"
-        accept=".csv, .hmcsv"
         onChange={handleFileUpload}
         disabled={isLoading}
       />
